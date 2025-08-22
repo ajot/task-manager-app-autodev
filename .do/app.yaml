@@ -1,0 +1,42 @@
+name: claude-task-manager-app
+services:
+- name: web
+  source_dir: /
+  github:
+    repo: ajotwani/claude-task-manager-app
+    branch: main
+    deploy_on_push: true
+  run_command: gunicorn --bind 0.0.0.0:8080 --workers 2 app:app
+  environment_slug: python
+  instance_count: 1
+  instance_size_slug: basic-s
+  http_port: 8080
+  health_check:
+    http_path: /health
+    initial_delay_seconds: 60
+    period_seconds: 10
+    timeout_seconds: 5
+    success_threshold: 1
+    failure_threshold: 3
+  envs:
+  - key: FLASK_ENV
+    value: production
+  - key: DATABASE_URL
+    value: ${db.DATABASE_URL}
+  - key: SECRET_KEY
+    scope: SECRET
+  - key: JWT_SECRET_KEY
+    scope: SECRET
+databases:
+- engine: PG
+  name: db
+  num_nodes: 1
+  size: db-s-1vcpu-1gb
+  version: "15"
+  production: true
+regions:
+- nyc1
+domains:
+- domain: claude-task-manager.your-domain.com
+  type: PRIMARY
+  wildcard: false

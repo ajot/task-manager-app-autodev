@@ -1,0 +1,121 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+  APP_NAME: claude-task-manager-prod
+
+jobs:
+  deploy-production:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+
+      - name: Check if production app exists
+        id: app-exists
+        run: |
+          if doctl apps list --format Name --no-header | grep -q "^${APP_NAME}$"; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            APP_ID=$(doctl apps list --format ID,Name --no-header | grep ${APP_NAME} | awk '{print $1}')
+            echo "app-id=${APP_ID}" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create production app spec
+        run: |
+          cat > production-app.yaml << EOF
+          name: ${APP_NAME}
+          services:
+          - name: web
+            source_dir: /
+            github:
+              repo: ${{ github.repository }}
+              branch: main
+              deploy_on_push: true
+            run_command: gunicorn --bind 0.0.0.0:8080 --workers 2 app:app
+            environment_slug: python
+            instance_count: 2
+            instance_size_slug: basic-s
+            http_port: 8080
+            health_check:
+              http_path: /health
+              initial_delay_seconds: 60
+              period_seconds: 10
+              timeout_seconds: 5
+              success_threshold: 1
+              failure_threshold: 3
+            envs:
+            - key: FLASK_ENV
+              value: production
+            - key: DATABASE_URL
+              value: \${db.DATABASE_URL}
+            - key: SECRET_KEY
+              value: \${{ secrets.FLASK_SECRET_KEY }}
+            - key: JWT_SECRET_KEY
+              value: \${{ secrets.JWT_SECRET_KEY }}
+          databases:
+          - engine: PG
+            name: db
+            num_nodes: 1
+            size: db-s-2vcpu-4gb
+            version: "15"
+          domains:
+          - domain: claude-task-manager.your-domain.com
+            type: PRIMARY
+          EOF
+
+      - name: Deploy to production
+        run: |
+          if [ "${{ steps.app-exists.outputs.exists }}" = "true" ]; then
+            echo "Updating existing production app..."
+            doctl apps update ${{ steps.app-exists.outputs.app-id }} --spec production-app.yaml --wait
+          else
+            echo "Creating new production app..."
+            doctl apps create --spec production-app.yaml --wait
+          fi
+
+      - name: Verify deployment
+        run: |
+          APP_URL=$(doctl apps list --format LiveURL --no-header | grep -v "^$")
+          echo "Production app deployed at: ${APP_URL}"
+          
+          # Health check
+          sleep 30
+          if curl -f "${APP_URL}/health"; then
+            echo "✅ Production deployment successful and healthy"
+          else
+            echo "❌ Production deployment failed health check"
+            exit 1
+          fi
+
+      - name: Notify deployment success
+        if: success()
+        run: |
+          # Post to Slack or other notification service
+          if [ -n "${{ secrets.SLACK_WEBHOOK_URL }}" ]; then
+            curl -X POST -H 'Content-type: application/json' \
+              --data "{\"text\":\"🚀 Production deployment completed successfully!\"}" \
+              ${{ secrets.SLACK_WEBHOOK_URL }}
+          fi
+
+      - name: Notify deployment failure
+        if: failure()
+        run: |
+          # Post failure notification
+          if [ -n "${{ secrets.SLACK_WEBHOOK_URL }}" ]; then
+            curl -X POST -H 'Content-type: application/json' \
+              --data "{\"text\":\"❌ Production deployment failed! Please check the logs.\"}" \
+              ${{ secrets.SLACK_WEBHOOK_URL }}
+          fi

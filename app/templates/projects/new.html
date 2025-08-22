@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}New Project - Task Manager{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0">
+                    <i class="fas fa-plus"></i> Create New Project
+                </h4>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('project_views.new_project') }}">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Project Name *</label>
+                        <input type="text" class="form-control" id="name" name="name" required 
+                               placeholder="Enter project name">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description</label>
+                        <textarea class="form-control" id="description" name="description" rows="4"
+                                  placeholder="Describe your project's goals and objectives"></textarea>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="color" class="form-label">Project Color</label>
+                                <div class="d-flex align-items-center">
+                                    <input type="color" class="form-control form-control-color me-3" 
+                                           id="color" name="color" value="#3498db" title="Choose project color">
+                                    <span class="text-muted">Choose a color to identify your project</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('project_views.projects_list') }}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> Cancel
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-plus"></i> Create Project
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
