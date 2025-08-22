@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Task Manager Application - Main Flask Application Entry Point
+Version: 1.0.0
 """
 
 import os

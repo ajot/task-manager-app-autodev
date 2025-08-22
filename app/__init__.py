@@ -5,6 +5,8 @@ from flask_jwt_extended import JWTManager
 from flask_cors import CORS
 from flask_marshmallow import Marshmallow
 
+__version__ = "1.0.0"
+
 db = SQLAlchemy()
 migrate = Migrate()
 jwt = JWTManager()
