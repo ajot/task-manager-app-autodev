@@ -1,0 +1,14 @@
+# WebSocket-specific requirements for Flask-SocketIO integration
+# These should be added to the main requirements.txt file
+
+flask-socketio==5.3.6
+python-socketio==5.10.0
+python-engineio==4.7.1
+eventlet==0.33.3
+
+# Optional: Redis for scaling WebSocket connections across multiple processes
+# redis==5.0.1
+# flask-redis==0.4.0
+
+# For JWT token handling in WebSocket authentication
+pyjwt==2.8.0
