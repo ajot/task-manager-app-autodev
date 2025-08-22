@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block title %}Projects - Task Manager{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="fas fa-folder"></i> Projects</h1>
+    <a href="{{ url_for('project_views.new_project') }}" class="btn btn-primary">
+        <i class="fas fa-plus"></i> New Project
+    </a>
+</div>
+
+{% if projects %}
+<div class="row">
+    {% for project in projects %}
+    <div class="col-lg-4 col-md-6 mb-4">
+        <div class="card project-card h-100">
+            <div class="card-body">
+                <div class="d-flex align-items-center mb-3">
+                    {% if project.color %}
+                    <div class="project-color-badge me-3" style="background-color: {{ project.color }};"></div>
+                    {% endif %}
+                    <h5 class="card-title mb-0">
+                        <a href="{{ url_for('project_views.project_detail', project_id=project.id) }}" class="text-decoration-none">
+                            {{ project.name }}
+                        </a>
+                    </h5>
+                </div>
+                
+                <p class="card-text text-muted">
+                    {{ project.description[:120] }}{% if project.description|length > 120 %}...{% endif %}
+                </p>
+                
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <small class="text-muted">
+                        <i class="fas fa-user"></i> {{ project.owner.full_name or project.owner.username }}
+                    </small>
+                    <small class="text-muted">
+                        <i class="fas fa-clock"></i> {{ project.updated_at }}
+                    </small>
+                </div>
+            </div>
+            
+            <div class="card-footer bg-transparent">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <a href="{{ url_for('project_views.project_detail', project_id=project.id) }}" class="btn btn-sm btn-primary">
+                            <i class="fas fa-eye"></i> View
+                        </a>
+                        <a href="{{ url_for('project_views.edit_project', project_id=project.id) }}" class="btn btn-sm btn-outline-secondary">
+                            <i class="fas fa-edit"></i> Edit
+                        </a>
+                    </div>
+                    {% if project.is_archived %}
+                    <span class="badge bg-warning">
+                        <i class="fas fa-archive"></i> Archived
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="text-center py-5">
+    <i class="fas fa-folder-open fa-4x text-muted mb-4"></i>
+    <h4 class="text-muted">No projects found</h4>
+    <p class="text-muted">Create your first project to get started with organizing your tasks.</p>
+    <a href="{{ url_for('project_views.new_project') }}" class="btn btn-primary btn-lg">
+        <i class="fas fa-plus"></i> Create Your First Project
+    </a>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.project-color-badge {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.project-card {
+    transition: transform 0.2s ease-in-out;
+}
+
+.project-card:hover {
+    transform: translateY(-5px);
+}
+</style>
+{% endblock %}

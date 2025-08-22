@@ -1,0 +1,253 @@
+{% extends "base.html" %}
+
+{% block title %}{{ task.title }} - Task Manager{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('task_views.tasks_list') }}">Tasks</a></li>
+                <li class="breadcrumb-item active">{{ task.title }}</li>
+            </ol>
+        </nav>
+        <h1>{{ task.title }}</h1>
+    </div>
+    <div>
+        <a href="{{ url_for('task_views.edit_task', task_id=task.id) }}" class="btn btn-outline-primary">
+            <i class="fas fa-edit"></i> Edit
+        </a>
+        <div class="btn-group">
+            <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                <i class="fas fa-cog"></i> Actions
+            </button>
+            <ul class="dropdown-menu">
+                <li><a class="dropdown-item status-update" href="#" data-task-id="{{ task.id }}" data-status="todo">
+                    <i class="fas fa-circle text-secondary"></i> Mark as To Do
+                </a></li>
+                <li><a class="dropdown-item status-update" href="#" data-task-id="{{ task.id }}" data-status="in_progress">
+                    <i class="fas fa-circle text-primary"></i> Mark as In Progress
+                </a></li>
+                <li><a class="dropdown-item status-update" href="#" data-task-id="{{ task.id }}" data-status="done">
+                    <i class="fas fa-circle text-success"></i> Mark as Done
+                </a></li>
+                <li><a class="dropdown-item status-update" href="#" data-task-id="{{ task.id }}" data-status="blocked">
+                    <i class="fas fa-circle text-danger"></i> Mark as Blocked
+                </a></li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Task Details -->
+    <div class="col-lg-8">
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <strong>Status:</strong>
+                        {% set status_color = {
+                            'todo': 'secondary',
+                            'in_progress': 'primary', 
+                            'done': 'success',
+                            'blocked': 'danger'
+                        } %}
+                        <span class="badge bg-{{ status_color.get(task.status, 'secondary') }}" id="status-badge">
+                            {{ task.status|title|replace('_', ' ') }}
+                        </span>
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Priority:</strong>
+                        {% set priority_color = {
+                            'low': 'success',
+                            'medium': 'warning',
+                            'high': 'orange', 
+                            'critical': 'danger'
+                        } %}
+                        <span class="badge bg-{{ priority_color.get(task.priority, 'secondary') }}">
+                            {{ task.priority|title }}
+                        </span>
+                    </div>
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <strong>Project:</strong>
+                        {% if task.project %}
+                        <a href="{{ url_for('project_views.project_detail', project_id=task.project.id) }}">
+                            {{ task.project.name }}
+                        </a>
+                        {% else %}
+                        <span class="text-muted">None</span>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Assignee:</strong>
+                        {% if task.assignee %}
+                        {{ task.assignee.full_name or task.assignee.username }}
+                        {% else %}
+                        <span class="text-muted">Unassigned</span>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <strong>Due Date:</strong>
+                        {% if task.due_date %}
+                        {{ task.due_date }}
+                        {% else %}
+                        <span class="text-muted">Not set</span>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Estimated Hours:</strong>
+                        {% if task.estimated_hours %}
+                        {{ task.estimated_hours }} hours
+                        {% else %}
+                        <span class="text-muted">Not estimated</span>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                {% if task.description %}
+                <div class="mb-3">
+                    <strong>Description:</strong>
+                    <div class="mt-2">
+                        {{ task.description|nl2br|safe }}
+                    </div>
+                </div>
+                {% endif %}
+                
+                <div class="row text-muted">
+                    <div class="col-md-6">
+                        <small>Created: {{ task.created_at }}</small>
+                    </div>
+                    <div class="col-md-6">
+                        <small>Last Updated: {{ task.updated_at }}</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Comments Section -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-comments"></i> Comments ({{ comments|length }})
+                </h5>
+            </div>
+            <div class="card-body">
+                <!-- Add Comment Form -->
+                <form method="POST" action="{{ url_for('task_views.add_comment', task_id=task.id) }}" class="mb-4">
+                    <div class="mb-3">
+                        <textarea class="form-control" name="content" rows="3" placeholder="Add a comment..." required></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-sm">
+                        <i class="fas fa-comment"></i> Add Comment
+                    </button>
+                </form>
+                
+                <!-- Comments List -->
+                {% for comment in comments %}
+                <div class="d-flex mb-3">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-user-circle fa-2x text-muted"></i>
+                    </div>
+                    <div class="flex-grow-1 ms-3">
+                        <div class="bg-light p-3 rounded">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <strong>{{ comment.user.full_name or comment.user.username }}</strong>
+                                <small class="text-muted">{{ comment.created_at }}</small>
+                            </div>
+                            <p class="mb-0">{{ comment.content|nl2br|safe }}</p>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="text-center text-muted py-4">
+                    <i class="fas fa-comments fa-3x mb-3"></i>
+                    <p>No comments yet. Be the first to comment!</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Sidebar -->
+    <div class="col-lg-4">
+        <!-- Task Activity -->
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="fas fa-history"></i> Activity
+                </h6>
+            </div>
+            <div class="card-body">
+                {% for activity in history %}
+                <div class="d-flex mb-3">
+                    <div class="flex-shrink-0">
+                        {% set action_icon = {
+                            'CREATED': 'fa-plus text-success',
+                            'UPDATED': 'fa-edit text-primary',
+                            'DELETED': 'fa-trash text-danger',
+                            'STATUS_CHANGED': 'fa-exchange-alt text-info',
+                            'ASSIGNED': 'fa-user text-warning',
+                            'COMPLETED': 'fa-check text-success',
+                            'COMMENTED': 'fa-comment text-info'
+                        } %}
+                        <i class="fas {{ action_icon.get(activity.action, 'fa-circle text-muted') }}"></i>
+                    </div>
+                    <div class="flex-grow-1 ms-2">
+                        <div class="small">
+                            <strong>{{ activity.user.username }}</strong>
+                            {{ activity.action|lower|replace('_', ' ') }}
+                            {% if activity.action == 'STATUS_CHANGED' and activity.details.new_status %}
+                                to <strong>{{ activity.details.new_status|title }}</strong>
+                            {% endif %}
+                            <br>
+                            <small class="text-muted">{{ activity.created_at }}</small>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="text-center text-muted">
+                    <i class="fas fa-history fa-2x mb-2"></i>
+                    <p class="small">No activity yet</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    $('.status-update').click(function(e) {
+        e.preventDefault();
+        
+        const taskId = $(this).data('task-id');
+        const newStatus = $(this).data('status');
+        
+        $.ajax({
+            url: `/tasks/${taskId}/status`,
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ status: newStatus }),
+            success: function(response) {
+                if (response.success) {
+                    // Reload page to show updated status
+                    location.reload();
+                }
+            },
+            error: function() {
+                alert('Failed to update task status!');
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

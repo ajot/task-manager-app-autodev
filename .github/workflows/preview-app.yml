@@ -1,0 +1,84 @@
+name: Deploy Preview App
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+
+env:
+  DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+
+jobs:
+  deploy-preview:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+
+      - name: Create preview app name
+        id: app-name
+        run: |
+          # Create a unique app name for the preview
+          PR_NUMBER=${{ github.event.number }}
+          APP_NAME="claude-task-manager-pr-${PR_NUMBER}"
+          echo "app-name=${APP_NAME}" >> $GITHUB_OUTPUT
+          echo "Preview app name: ${APP_NAME}"
+
+      - name: Create preview app spec
+        run: |
+          # Create a temporary app spec for preview deployment
+          cat > preview-app.yaml << EOF
+          name: ${{ steps.app-name.outputs.app-name }}
+          services:
+          - name: web
+            source_dir: /
+            github:
+              repo: ${{ github.repository }}
+              branch: ${{ github.head_ref }}
+              deploy_on_push: false
+            run_command: gunicorn --bind 0.0.0.0:8080 app:app
+            environment_slug: python
+            instance_count: 1
+            instance_size_slug: basic-xxs
+            http_port: 8080
+            health_check:
+              http_path: /health
+            envs:
+            - key: FLASK_ENV
+              value: production
+            - key: DATABASE_URL
+              value: \${db.DATABASE_URL}
+            - key: SECRET_KEY
+              value: \${{ secrets.FLASK_SECRET_KEY }}
+          databases:
+          - engine: PG
+            name: db
+            num_nodes: 1
+            size: db-s-dev-database
+            version: "15"
+          EOF
+
+      - name: Deploy to DigitalOcean App Platform
+        run: |
+          # Deploy the preview app
+          doctl apps create --spec preview-app.yaml --wait
+          
+          # Get the app URL
+          APP_URL=$(doctl apps list --format ID,LiveURL --no-header | grep ${{ steps.app-name.outputs.app-name }} | awk '{print $2}')
+          echo "Preview app deployed at: ${APP_URL}"
+          
+          # Comment on PR with preview URL
+          curl -X POST \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"body\": \"🚀 **Preview app deployed!**\\n\\nYou can view the changes at: ${APP_URL}\\n\\n_This preview will be automatically cleaned up when the PR is closed._\"}" \
+            "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.number }}/comments"

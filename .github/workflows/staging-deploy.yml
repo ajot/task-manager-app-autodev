@@ -1,0 +1,91 @@
+name: Deploy to Staging
+
+on:
+  push:
+    branches:
+      - staging
+
+env:
+  DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+  APP_NAME: claude-task-manager-staging
+
+jobs:
+  deploy-staging:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+
+      - name: Check if staging app exists
+        id: app-exists
+        run: |
+          if doctl apps list --format Name --no-header | grep -q "^${APP_NAME}$"; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            APP_ID=$(doctl apps list --format ID,Name --no-header | grep ${APP_NAME} | awk '{print $1}')
+            echo "app-id=${APP_ID}" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create staging app spec
+        run: |
+          cat > staging-app.yaml << EOF
+          name: ${APP_NAME}
+          services:
+          - name: web
+            source_dir: /
+            github:
+              repo: ${{ github.repository }}
+              branch: staging
+              deploy_on_push: true
+            run_command: gunicorn --bind 0.0.0.0:8080 app:app
+            environment_slug: python
+            instance_count: 1
+            instance_size_slug: basic-xs
+            http_port: 8080
+            health_check:
+              http_path: /health
+            envs:
+            - key: FLASK_ENV
+              value: staging
+            - key: DATABASE_URL
+              value: \${db.DATABASE_URL}
+            - key: SECRET_KEY
+              value: \${{ secrets.FLASK_SECRET_KEY }}
+          databases:
+          - engine: PG
+            name: db
+            num_nodes: 1
+            size: db-s-1vcpu-1gb
+            version: "15"
+          domains:
+          - domain: staging.claude-task-manager.your-domain.com
+            type: PRIMARY
+          EOF
+
+      - name: Deploy to staging
+        run: |
+          if [ "${{ steps.app-exists.outputs.exists }}" = "true" ]; then
+            echo "Updating existing staging app..."
+            doctl apps update ${{ steps.app-exists.outputs.app-id }} --spec staging-app.yaml --wait
+          else
+            echo "Creating new staging app..."
+            doctl apps create --spec staging-app.yaml --wait
+          fi
+
+      - name: Get deployment info
+        run: |
+          APP_URL=$(doctl apps list --format LiveURL --no-header | grep -v "^$")
+          echo "Staging app deployed at: ${APP_URL}"
+          
+          # Post to Slack or other notification service if configured
+          if [ -n "${{ secrets.SLACK_WEBHOOK_URL }}" ]; then
+            curl -X POST -H 'Content-type: application/json' \
+              --data "{\"text\":\"🚀 Staging deployment completed: ${APP_URL}\"}" \
+              ${{ secrets.SLACK_WEBHOOK_URL }}
+          fi

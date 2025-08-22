@@ -1,0 +1,65 @@
+name: Cleanup Preview App
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - closed
+
+env:
+  DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+
+jobs:
+  cleanup-preview:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+
+      - name: Create preview app name
+        id: app-name
+        run: |
+          PR_NUMBER=${{ github.event.number }}
+          APP_NAME="claude-task-manager-pr-${PR_NUMBER}"
+          echo "app-name=${APP_NAME}" >> $GITHUB_OUTPUT
+          echo "Preview app to cleanup: ${APP_NAME}"
+
+      - name: Check if preview app exists
+        id: app-exists
+        run: |
+          if doctl apps list --format Name --no-header | grep -q "^${{ steps.app-name.outputs.app-name }}$"; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            APP_ID=$(doctl apps list --format ID,Name --no-header | grep ${{ steps.app-name.outputs.app-name }} | awk '{print $1}')
+            echo "app-id=${APP_ID}" >> $GITHUB_OUTPUT
+            echo "Found preview app with ID: ${APP_ID}"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "Preview app not found, nothing to cleanup"
+          fi
+
+      - name: Delete preview app
+        if: steps.app-exists.outputs.exists == 'true'
+        run: |
+          echo "Deleting preview app: ${{ steps.app-name.outputs.app-name }}"
+          doctl apps delete ${{ steps.app-exists.outputs.app-id }} --force
+          echo "Preview app deleted successfully"
+
+      - name: Comment on PR about cleanup
+        if: steps.app-exists.outputs.exists == 'true'
+        run: |
+          curl -X POST \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"body\": \"🧹 **Preview app cleaned up!**\\n\\nThe preview environment for this PR has been automatically removed.\"}" \
+            "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.number }}/comments"
+
+      - name: Log cleanup completion
+        run: |
+          if [ "${{ steps.app-exists.outputs.exists }}" = "true" ]; then
+            echo "✅ Preview app cleanup completed"
+          else
+            echo "ℹ️ No preview app found to cleanup"
+          fi
